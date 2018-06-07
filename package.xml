@@ -28,6 +28,8 @@
   <depend>wx-common</depend>
   <depend>wxwidgets</depend>
   <depend>zlib</depend>
+  <depend>assimp-dev</depend>
+  <depend>octomap</depend>
 
   <doc_depend>doxygen</doc_depend>
 
@@ -36,6 +38,7 @@
   <exec_depend>catkin</exec_depend>
   <export>
     <build_type>cmake</build_type>
+    <rosdoc config="doc/rosdoc.yaml" />
   </export>
   <!-- End -->
 
