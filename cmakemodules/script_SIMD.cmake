@@ -5,9 +5,11 @@ MARK_AS_ADVANCED(MRPT_AUTODETECT_SSE)
 
 # Read info about CPUs:
 SET(DO_SSE_AUTODETECT 0)
-IF(MRPT_AUTODETECT_SSE AND EXISTS "/proc/cpuinfo")
+IF(MRPT_AUTODETECT_SSE AND EXISTS "/proc/cpuinfo" AND
+	(CMAKE_MRPT_ARCH STREQUAL "x86_64" OR
+	CMAKE_MRPT_ARCH STREQUAL "i686") )
 	SET(DO_SSE_AUTODETECT 1)
-ENDIF(MRPT_AUTODETECT_SSE AND EXISTS "/proc/cpuinfo")
+ENDIF()
 
 IF (DO_SSE_AUTODETECT)
 	FILE(READ "/proc/cpuinfo" MRPT_CPU_INFO)
@@ -25,12 +27,12 @@ macro(DEFINE_SSE_VAR  _setname)
 		ENDIF()
 	ELSE (DO_SSE_AUTODETECT)
 		# Manual:
-		SET("DISABLE_${_setname}" OFF CACHE BOOL "Forces compilation WITHOUT ${_setname} extensions")
+		SET("DISABLE_${_setname}" ON CACHE BOOL "Forces compilation WITHOUT ${_setname} extensions")
 		MARK_AS_ADVANCED("DISABLE_${_setname}")
 		SET(CMAKE_MRPT_HAS_${_setname} 0)
 		IF (NOT DISABLE_${_setname})
 			SET(CMAKE_MRPT_HAS_${_setname} 1)
-		ENDIF (NOT DISABLE_${_setname})	
+		ENDIF (NOT DISABLE_${_setname})
 	ENDIF (DO_SSE_AUTODETECT)
 endmacro(DEFINE_SSE_VAR)
 
