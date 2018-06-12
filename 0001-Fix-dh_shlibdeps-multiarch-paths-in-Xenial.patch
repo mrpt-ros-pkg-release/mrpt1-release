@@ -1,4 +1,4 @@
-From 34096383acc0b15bb266338481ca55b10182ab6e Mon Sep 17 00:00:00 2001
+From c98e4f6a3d69a10dcf39f5ff5a73797051ea356b Mon Sep 17 00:00:00 2001
 From: Jose Luis Blanco-Claraco <joseluisblancoc@gmail.com>
 Date: Thu, 7 Jun 2018 08:50:19 +0200
 Subject: [PATCH] Fix dh_shlibdeps multiarch paths in Xenial
