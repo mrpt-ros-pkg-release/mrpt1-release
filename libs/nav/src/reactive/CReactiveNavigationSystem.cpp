@@ -178,7 +178,7 @@ bool CReactiveNavigationSystem::implementSenseObstacles(mrpt::system::TTimeStamp
 
 		// Optional filtering of obstacles:
 		m_WS_Obstacles_original = m_WS_Obstacles;
-		if (ret && m_WS_filter.present())
+		if (ret && m_WS_filter.get()!=NULL)
 		{
 			m_WS_filter->filter(&m_WS_Obstacles, obstacles_timestamp, mrpt::poses::CPose3D(mrpt::math::TPose3D(m_curPoseVel.pose)) );
 		}
@@ -201,6 +201,7 @@ bool CReactiveNavigationSystem::implementSenseObstacles(mrpt::system::TTimeStamp
 
 void CReactiveNavigationSystem::STEP3_WSpaceToTPSpace(const size_t ptg_idx,std::vector<double> &out_TPObstacles, mrpt::nav::ClearanceDiagram &out_clearance, const mrpt::math::TPose2D &rel_pose_PTG_origin_wrt_sense_, const bool eval_clearance)
 {
+	ASSERT_BELOW_(ptg_idx, this->getPTG_count());
 	CParameterizedTrajectoryGenerator	*ptg = this->getPTG(ptg_idx);
 
 	const mrpt::poses::CPose2D rel_pose_PTG_origin_wrt_sense(rel_pose_PTG_origin_wrt_sense_);

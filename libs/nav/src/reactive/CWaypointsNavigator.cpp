@@ -35,15 +35,15 @@ bool CWaypointsNavigator::TNavigationParamsWaypoints::isEqual(const CAbstractNav
 {
 	auto o = dynamic_cast<const CWaypointsNavigator::TNavigationParamsWaypoints*>(&rhs);
 	return o!=nullptr &&
-		CAbstractNavigator::TNavigationParams::isEqual(rhs) &&
-		multiple_targets == o->multiple_targets;
+	    CAbstractNavigator::TNavigationParams::isEqual(rhs) &&
+	    multiple_targets == o->multiple_targets;
 }
 
 CWaypointsNavigator::CWaypointsNavigator(CRobot2NavInterface &robot_if) :
-	CAbstractNavigator(robot_if),
-	m_was_aligning(false),
-	m_is_aligning(false),
-	m_last_alignment_cmd(mrpt::system::now())
+    CAbstractNavigator(robot_if),
+    m_was_aligning(false),
+    m_is_aligning(false),
+    m_last_alignment_cmd(mrpt::system::now())
 {
 }
 
@@ -70,8 +70,6 @@ void CWaypointsNavigator::navigateWaypoints( const TWaypointSequence & nav_reque
 	this->onNavigateCommandReceived();
 
 	mrpt::synch::CCriticalSectionLocker csl(&m_nav_waypoints_cs);
-
-	m_pending_events.clear();
 
 	const size_t N = nav_request.waypoints.size();
 	ASSERTMSG_(N>0,"List of waypoints is empty!");
@@ -147,6 +145,8 @@ void CWaypointsNavigator::waypoints_navigationStep()
 		}
 		wps.last_robot_pose = m_curPoseVel.pose; // save for next iters
 
+		decltype(m_pending_events) new_events;
+
 		if (wps.waypoint_index_current_goal >= 0)
 		{
 			auto &wp = wps.waypoints[wps.waypoint_index_current_goal];
@@ -164,9 +164,9 @@ void CWaypointsNavigator::waypoints_navigationStep()
 					const double ang_err = mrpt::math::angDistance(m_curPoseVel.pose.phi, wp.target_heading);
 					const double tim_since_last_align = mrpt::system::timeDifference(m_last_alignment_cmd, mrpt::system::now());
 					const double ALIGN_WAIT_TIME = 1.5; // seconds
-					if (std::abs(ang_err) <= params_waypoints_navigator.waypoint_angle_tolerance && 
-						tim_since_last_align>ALIGN_WAIT_TIME // give some time for the alignment (if supported in this robot) to finish
-						)
+					if (std::abs(ang_err) <= params_waypoints_navigator.waypoint_angle_tolerance &&
+					    tim_since_last_align>ALIGN_WAIT_TIME // give some time for the alignment (if supported in this robot) to finish
+					    )
 					{
 						consider_wp_reached = true;
 					}
@@ -181,12 +181,12 @@ void CWaypointsNavigator::waypoints_navigationStep()
 							mrpt::kinematics::CVehicleVelCmdPtr align_cmd = m_robot.getAlignCmd(ang_err);
 
 							MRPT_LOG_INFO_FMT(
-								"[CWaypointsNavigator::navigationStep] Trying to align to heading: %.02f deg. "
-								"Relative heading: %.02f deg. "
-								"With motion cmd: %s",
-								mrpt::utils::RAD2DEG(wp.target_heading),
-								mrpt::utils::RAD2DEG(ang_err),
-								align_cmd ? align_cmd->asString().c_str() : "nullptr (operation not supported by this robot)");
+							    "[CWaypointsNavigator::navigationStep] Trying to align to heading: %.02f deg. "
+							    "Relative heading: %.02f deg. "
+							    "With motion cmd: %s",
+							    mrpt::utils::RAD2DEG(wp.target_heading),
+							    mrpt::utils::RAD2DEG(ang_err),
+							    align_cmd ? align_cmd->asString().c_str() : "nullptr (operation not supported by this robot)");
 
 							if (align_cmd)
 							{
@@ -209,8 +209,8 @@ void CWaypointsNavigator::waypoints_navigationStep()
 				if (consider_wp_reached)
 				{
 					MRPT_LOG_DEBUG_STREAM("[CWaypointsNavigator::navigationStep] Waypoint " <<
-						(wps.waypoint_index_current_goal + 1) << "/" << wps.waypoints.size() << " reached."
-						" segment-to-target dist: " << dist2target << ", allowed_dist: " << wp.allowed_distance
+					    (wps.waypoint_index_current_goal + 1) << "/" << wps.waypoints.size() << " reached."
+					    " segment-to-target dist: " << dist2target << ", allowed_dist: " << wp.allowed_distance
 					);
 
 					wp.reached = true;
@@ -221,7 +221,7 @@ void CWaypointsNavigator::waypoints_navigationStep()
 						ev.event_wp_reached = true;
 						ev.event_wp_reached_index = wps.waypoint_index_current_goal;
 						ev.event_wp_reached_reached = true /* reason: really reached*/;
-						m_pending_events.push_back(ev);
+						new_events.push_back(ev);
 					}
 
 					// Was this the final goal??
@@ -242,9 +242,9 @@ void CWaypointsNavigator::waypoints_navigationStep()
 		// 2) More advanced policy: if available, use children class methods to decide
 		//     which is the best candidate for the next waypoint, if we can skip current one:
 		if (!wps.final_goal_reached &&
-			wps.waypoint_index_current_goal >= 0 &&
-			wps.waypoints[wps.waypoint_index_current_goal].allow_skip
-			)
+		    wps.waypoint_index_current_goal >= 0 &&
+		    wps.waypoints[wps.waypoint_index_current_goal].allow_skip
+		    )
 		{
 			const mrpt::poses::CPose2D robot_pose(m_curPoseVel.pose);
 			int most_advanced_wp = wps.waypoint_index_current_goal;
@@ -290,11 +290,14 @@ void CWaypointsNavigator::waypoints_navigationStep()
 						ev.event_wp_reached = true;
 						ev.event_wp_reached_index = k;
 						ev.event_wp_reached_reached = false /* reason: skipped */;
-						m_pending_events.push_back(ev);
+						new_events.push_back(ev);
 					}
 				}
 			}
 		}
+
+		// Insert at the beginning, for these events to be dispatched *before* any "end of nav" event:
+		m_pending_events.insert(m_pending_events.begin(), new_events.begin(), new_events.end());
 
 		// Still not started and no better guess? Start with the first waypoint:
 		if (wps.waypoint_index_current_goal<0)
@@ -312,6 +315,7 @@ void CWaypointsNavigator::waypoints_navigationStep()
 				TPendingEvent ev;
 				ev.event_new_wp = true;
 				ev.event_new_wp_index = wps.waypoint_index_current_goal;
+				// Push back so it's dispatched *after* the wp reached events:
 				m_pending_events.push_back(ev);
 			}
 
@@ -341,7 +345,7 @@ void CWaypointsNavigator::waypoints_navigationStep()
 				ti.targetAllowedDistance = wp.allowed_distance;
 				ti.targetIsRelative = false;
 				ti.targetIsIntermediaryWaypoint = !is_final_wp;
-				ti.targetDesiredRelSpeed = (is_final_wp || (wp.target_heading != TWaypoint::INVALID_NUM)) ? params_waypoints_navigator.rel_speed_for_stop_waypoints : 1.;
+				ti.targetDesiredRelSpeed = wp.speed_ratio;
 
 				// For backwards compat. with single-target code, write single target info too for the first, next, waypoint:
 				if (wp_idx == wps.waypoint_index_current_goal) {
@@ -371,7 +375,7 @@ void CWaypointsNavigator::navigationStep()
 	MRPT_START
 	m_is_aligning = false;  // the robot is aligning into a waypoint with a desired heading
 
-	// State can be NAVIGATING if we are already heading to a waypoint, 
+	// State can be NAVIGATING if we are already heading to a waypoint,
 	// or IDLE if navigateWaypoints() was called and this is the first
 	// navStep() afterwards:
 	if (m_navigationState == NAVIGATING || m_navigationState == IDLE)
@@ -423,7 +427,6 @@ void mrpt::nav::CWaypointsNavigator::TWaypointsNavigatorParams::loadFromConfigFi
 	MRPT_LOAD_CONFIG_VAR(max_distance_to_allow_skip_waypoint, double, c, s);
 	MRPT_LOAD_CONFIG_VAR(min_timesteps_confirm_skip_waypoints, int, c, s);
 	MRPT_LOAD_CONFIG_VAR_DEGREES(waypoint_angle_tolerance, c, s);
-	MRPT_LOAD_CONFIG_VAR(rel_speed_for_stop_waypoints, double, c, s);
 	MRPT_LOAD_CONFIG_VAR(multitarget_look_ahead, int, c, s);
 }
 
@@ -432,16 +435,14 @@ void mrpt::nav::CWaypointsNavigator::TWaypointsNavigatorParams::saveToConfigFile
 	MRPT_SAVE_CONFIG_VAR_COMMENT(max_distance_to_allow_skip_waypoint, "Max distance to `foresee` waypoints [meters]. (<0: unlimited)");
 	MRPT_SAVE_CONFIG_VAR_COMMENT(min_timesteps_confirm_skip_waypoints, "Min timesteps a `future` waypoint must be seen as reachable to become the active one.");
 	MRPT_SAVE_CONFIG_VAR_DEGREES_COMMENT("waypoint_angle_tolerance", waypoint_angle_tolerance, "Angular error tolerance for waypoints with an assigned heading [deg] (Default: 5 deg)");
-	MRPT_SAVE_CONFIG_VAR_COMMENT(rel_speed_for_stop_waypoints, "[0,1] Relative speed when aiming at a stop-point waypoint (Default=0.10)");
 	MRPT_SAVE_CONFIG_VAR_COMMENT(multitarget_look_ahead, ">=0 number of waypoints to forward to the underlying navigation engine, to ease obstacles avoidance when a waypoint is blocked (Default=0 : none)");
 }
 
 CWaypointsNavigator::TWaypointsNavigatorParams::TWaypointsNavigatorParams() :
-	max_distance_to_allow_skip_waypoint(-1.0),
-	min_timesteps_confirm_skip_waypoints(1),
-	waypoint_angle_tolerance( mrpt::utils::DEG2RAD(5.0) ),
-	rel_speed_for_stop_waypoints(0.10),
-	multitarget_look_ahead(0)
+    max_distance_to_allow_skip_waypoint(-1.0),
+    min_timesteps_confirm_skip_waypoints(1),
+    waypoint_angle_tolerance( mrpt::utils::DEG2RAD(5.0) ),
+    multitarget_look_ahead(0)
 {
 }
 
@@ -457,26 +458,26 @@ bool CWaypointsNavigator::checkHasReachedTarget(const double targetDist) const
 	else if (wps.timestamp_nav_started != INVALID_TIMESTAMP)
 	{
 		wp = (!wps.waypoints.empty() &&
-			wps.waypoint_index_current_goal >= 0 &&
-			wps.waypoint_index_current_goal < (int)wps.waypoints.size()
-			)
-			?
-			&wps.waypoints[wps.waypoint_index_current_goal]
-			:
-			nullptr;
+		    wps.waypoint_index_current_goal >= 0 &&
+		    wps.waypoint_index_current_goal < (int)wps.waypoints.size()
+		    )
+		    ?
+		    &wps.waypoints[wps.waypoint_index_current_goal]
+		    :
+		    nullptr;
 		ret = (wp == nullptr && targetDist <= m_navigationParams->target.targetAllowedDistance) ||
-			(wp->reached);
+		    (wp->reached);
 	}
 	else
 	{
 		ret = (targetDist <= m_navigationParams->target.targetAllowedDistance);
 	}
 	MRPT_LOG_DEBUG_STREAM("CWaypointsNavigator::checkHasReachedTarget() called "
-		"with targetDist=" << targetDist << " return=" << ret << " waypoint: " <<
-		(wp == nullptr ? std::string("") : wp->getAsText()) <<
-		"wps.timestamp_nav_started=" << 
-		(wps.timestamp_nav_started==INVALID_TIMESTAMP ? 
-			"INVALID_TIMESTAMP" : mrpt::system::dateTimeLocalToString(wps.timestamp_nav_started) )
-		);
+	    "with targetDist=" << targetDist << " return=" << ret << " waypoint: " <<
+	    (wp == nullptr ? std::string("") : wp->getAsText()) <<
+	    "wps.timestamp_nav_started=" <<
+	    (wps.timestamp_nav_started==INVALID_TIMESTAMP ?
+	        "INVALID_TIMESTAMP" : mrpt::system::dateTimeLocalToString(wps.timestamp_nav_started) )
+	    );
 	return ret;
 }
