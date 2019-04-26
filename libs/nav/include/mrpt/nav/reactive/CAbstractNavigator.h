@@ -17,6 +17,7 @@
 #include <mrpt/poses/FrameTransformer.h>
 #include <mrpt/synch/CCriticalSection.h>
 #include <mrpt/obs/obs_frwds.h>
+#include <list>
 
 #include <mrpt/nav/link_pragmas.h>
 
@@ -120,11 +121,33 @@ namespace mrpt
 			IDLE=0,
 			NAVIGATING,
 			SUSPENDED,
-			NAV_ERROR
+			NAV_ERROR //!< In this case, use getErrorReason()
 		};
 
 		/** Returns the current navigator state. */
 		inline TState getCurrentState() const { return m_navigationState; }
+
+		/** Explains the reason for the navigation error. */
+		enum TErrorCode {
+			ERR_NONE=0,
+			ERR_EMERGENCY_STOP,
+			ERR_CANNOT_REACH_TARGET,
+			ERR_OTHER
+		};
+		struct NAV_IMPEXP TErrorReason
+		{
+			TErrorReason() : error_code(ERR_NONE) {}
+
+			TErrorCode error_code;
+			/** Human friendly description of the error */
+			std::string error_msg;
+		};
+
+		/** In case of state=NAV_ERROR, this returns the reason for the error.
+		  * Error state is reseted everytime a new navigation starts with
+		  * a call to navigate(), or when resetNavError() is called.
+		  */
+		inline const TErrorReason & getErrorReason() const { return m_navErrorReason; }
 
 		/** Sets a user-provided frame transformer object; used only if providing targets in a frame ID
 		  * different than the one in which robot odometry is given (both IDs default to `"map"`).
@@ -137,6 +160,16 @@ namespace mrpt
 		/** Get the current frame tf object (defaults to nullptr) \sa setFrameTF */
 		const mrpt::poses::FrameTransformer<2> * getFrameTF() const { return m_frame_tf; }
 
+		/** By default, error exceptions on navigationStep() will dump an error message
+		* to the output logger interface. If rethrow is enabled (default=false), the
+		* error message will be reported as well, but exceptions will be re-thrown.
+		*/
+		void enableRethrowNavExceptions(const bool enable) {
+			m_rethrow_exceptions = enable;
+		}
+		bool isRethrowNavExceptionsEnabled() const {
+			return m_rethrow_exceptions;
+		}
 		/** @}*/
 
 		struct NAV_IMPEXP TAbstractNavigatorParams : public mrpt::utils::CLoadableOptions
@@ -158,8 +191,10 @@ namespace mrpt
 
 	private:
 		TState  m_lastNavigationState; //!< Last internal state of navigator:
+		TErrorReason m_navErrorReason;
 		bool    m_navigationEndEventSent; //!< Will be false until the navigation end is sent, and it is reset with each new command
 		int m_counter_check_target_is_blocked;
+		bool m_rethrow_exceptions;
 
 		/** Called before starting a new navigation. Internally, it calls to child-implemented onStartNewNavigation() */
 		void internal_onStartNewNavigation();
@@ -184,7 +219,7 @@ namespace mrpt
 		/** Events generated during navigationStep(), enqueued to be called
 		* at the end of the method execution to avoid user code to change
 		* the navigator state. */
-		std::vector<TPendingEvent> m_pending_events;
+		std::list<TPendingEvent> m_pending_events;
 
 		void dispatchPendingNavEvents();
 
@@ -198,11 +233,11 @@ namespace mrpt
 		virtual void onNavigateCommandReceived();
 
 		/** Does the job of navigate(), except the call to onNavigateCommandReceived() */
-		void processNavigateCommand(const TNavigationParams *params);
+		virtual void processNavigateCommand(const TNavigationParams *params);
 
 		/** Call to the robot getCurrentPoseAndSpeeds() and updates members m_curPoseVel accordingly.
 		  * If an error is returned by the user callback, first, it calls robot.stop() ,then throws an std::runtime_error exception. */
-		void updateCurrentPoseAndSpeeds();
+		virtual void updateCurrentPoseAndSpeeds();
 
 		/** Factorization of the part inside navigationStep(), for the case of state being NAVIGATING.
 		  * Performs house-hold tasks like raising events in case of starting/ending navigation, timeout reaching destination, etc.
@@ -211,7 +246,7 @@ namespace mrpt
 		virtual void performNavigationStepNavigating(bool call_virtual_nav_method = true);
 
 		/** Stops the robot and set navigation state to error */
-		void doEmergencyStop( const std::string &msg );
+		virtual void doEmergencyStop( const std::string &msg );
 
 		virtual bool changeSpeeds(const mrpt::kinematics::CVehicleVelCmd &vel_cmd); //!< Default: forward call to m_robot.changeSpeed(). Can be overriden.
 		virtual bool changeSpeedsNOP(); //!< Default: forward call to m_robot.changeSpeedsNOP(). Can be overriden.

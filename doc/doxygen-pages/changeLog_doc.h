@@ -14,12 +14,26 @@
 
 <hr>
 <a name="1.5.7">
-<h2>Version 1.5.7: (Under development) </h2></a>
+<h2>Version 1.5.7: Released 24/APR/2019  </h2></a>
 - <b>Detailed list of changes:</b>
+	- \ref mrpt_base_grp
+		- The following features have been finally ported to C++11. User code now requires, at least, C++11 enabled:
+			- stlplus-based smart pointers replaced by std::shared_ptr. Backwards compatibility API is maintained.
+			- mrpt::system::TThreadHandle now is a wrapper around std::thread.
+			- Atomic counters now based on std::atomic. Custom implementation has been removed.
+			- stlplus source code has been removed.
+		- mrpt::utils::COutputLogger: change log str format from "[name|type|time]" to "[time|type|name]".
 	- \ref mrpt_graphslam_grp
+		- levenberg-Marquardt graphslam modified to use more stable SE(2) Jacobians.
 		- CNetworkOfPoses: read/write format made compatible with G2O EDGE_SE2 types.
-	- BUG FIXES: 
+	- \ref mrpt_nav_grp
+		- Add virtual method CAbstractPTGBasedReactive::getHoloMethod()
+		- New method CAbstractPTGBasedReactive::enableRethrowNavExceptions() to rethrow exceptions during navigation.
+		- Waypoints now have a field `speed_ratio` which is directly forwarded to the low-level reactive navigator.
+	- BUG FIXES:
 		- Fix missing "-ldl" linker flag.
+		- Fix building against wxWidgets 3.1.1 in Windows (zlib link error).
+		- Fix potential segfault in 3D reactive navigator.
 
 <hr>
 <a name="1.5.6">
