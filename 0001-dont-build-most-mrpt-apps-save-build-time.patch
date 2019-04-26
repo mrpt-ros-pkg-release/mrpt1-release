@@ -1,4 +1,4 @@
-From 04d35b2d7da0ea480ccad550bae00828e1c47a1d Mon Sep 17 00:00:00 2001
+From 76f8941e024e52ab9c017a4eb80f13b460780727 Mon Sep 17 00:00:00 2001
 From: Jose Luis Blanco Claraco <joseluisblancoc@gmail.com>
 Date: Fri, 18 May 2018 14:31:20 +0200
 Subject: [PATCH] dont build most mrpt apps (save build time)
@@ -66,5 +66,5 @@ index aa010fa..e9d30d6 100755
  override_dh_auto_build:
  	# In case we're installing to a non-standard location, look for a setup.sh
 -- 
-2.7.4
+2.17.1
 
