@@ -90,7 +90,10 @@ void CAbstractPTGBasedReactive::preDestructor()
 
 	// Just in case.
 	try {
-		this->stop(false /*not emergency*/);
+		// Call base class method, NOT the generic, virtual one, 
+		// to avoid problems if we are in the dtor, while the vtable 
+		// is being destroyed.
+		CAbstractNavigator::stop(false /*not emergency*/);
 	} catch (...) { }
 
 	mrpt::utils::delete_safe(m_logFile);
@@ -445,7 +448,9 @@ void CAbstractPTGBasedReactive::performNavigationStep()
 			CParameterizedTrajectoryGenerator * ptg = getPTG(indexPTG);
 
 			// Ensure the method knows about its associated PTG:
-			m_holonomicMethod[indexPTG]->setAssociatedPTG(this->getPTG(indexPTG));
+			auto holoMethod = this->getHoloMethod(indexPTG);
+			ASSERT_(holoMethod);
+			holoMethod->setAssociatedPTG(this->getPTG(indexPTG));
 
 			TInfoPerPTG &ipf = m_infoPerPTG[indexPTG];
 
@@ -458,7 +463,7 @@ void CAbstractPTGBasedReactive::performNavigationStep()
 				relTargets, rel_pose_PTG_origin_wrt_sense,
 				ipf, cm,
 				newLogRec, false /* this is a regular PTG reactive case */,
-				m_holonomicMethod[indexPTG],
+				holoMethod,
 				tim_start_iteration,
 				*m_navigationParams
 				);
@@ -493,7 +498,9 @@ void CAbstractPTGBasedReactive::performNavigationStep()
 		bool NOP_not_too_close_and_have_to_slowdown = true;
 		double NOP_max_time = -1.0, NOP_At = -1.0;
 		double slowdowndist = .0;
-		CParameterizedTrajectoryGenerator * last_sent_ptg = m_lastSentVelCmd.isValid() ? getPTG(m_lastSentVelCmd.ptg_index) : nullptr;
+		CParameterizedTrajectoryGenerator * last_sent_ptg =
+			(m_lastSentVelCmd.isValid() && m_lastSentVelCmd.ptg_index>=0) ?
+				getPTG(m_lastSentVelCmd.ptg_index) : nullptr;
 		if (last_sent_ptg) {
 			// So supportSpeedAtTarget() below is evaluated in the correct context:
 			last_sent_ptg->updateNavDynamicState(m_lastSentVelCmd.ptg_dynState);
@@ -583,7 +590,7 @@ void CAbstractPTGBasedReactive::performNavigationStep()
 					relTargets_NOPs, rel_pose_PTG_origin_wrt_sense_NOP,
 					m_infoPerPTG[nPTGs], candidate_movs[nPTGs],
 					newLogRec, true /* this is the PTG continuation (NOP) choice */,
-					m_holonomicMethod[m_lastSentVelCmd.ptg_index],
+					getHoloMethod(m_lastSentVelCmd.ptg_index),
 					tim_start_iteration,
 					*m_navigationParams,
 					rel_cur_pose_wrt_last_vel_cmd_NOP);
@@ -904,11 +911,11 @@ void CAbstractPTGBasedReactive::calc_move_candidate_scores(
 
 	// Make sure that the target slow-down is honored, as seen in real-world Euclidean space
 	// (as opposed to TP-Space, where the holo methods are evaluated)
-	if (m_navigationParams && m_navigationParams->target.targetDesiredRelSpeed<1.0 && !m_holonomicMethod.empty() && m_holonomicMethod[0]!=nullptr
+	if (m_navigationParams && m_navigationParams->target.targetDesiredRelSpeed<1.0 && !m_holonomicMethod.empty() && getHoloMethod(0)!=nullptr
 		&& !cm.PTG->supportSpeedAtTarget()  // If the PTG is able to handle the slow-down on its own, dont change speed here
 		)
 	{
-		const double TARGET_SLOW_APPROACHING_DISTANCE = m_holonomicMethod[0]->getTargetApproachSlowDownDistance();
+		const double TARGET_SLOW_APPROACHING_DISTANCE = getHoloMethod(0)->getTargetApproachSlowDownDistance();
 
 		const double Vf = m_navigationParams->target.targetDesiredRelSpeed; // [0,1]
 
@@ -1578,7 +1585,7 @@ void CAbstractPTGBasedReactive::loadConfigFile(const mrpt::utils::CConfigFileBas
 	}
 	else
 	{
-		m_WS_filter.clear_unique();
+		m_WS_filter.reset();
 	}
 
 	// Movement chooser:
@@ -1660,4 +1667,9 @@ double CAbstractPTGBasedReactive::getTargetApproachSlowDownDistance() const
 {
 	ASSERT_(!m_holonomicMethod.empty());
 	return m_holonomicMethod[0]->getTargetApproachSlowDownDistance();
+}
+
+CAbstractHolonomicReactiveMethod* CAbstractPTGBasedReactive::getHoloMethod(int idx)
+{
+	return m_holonomicMethod[idx];
 }

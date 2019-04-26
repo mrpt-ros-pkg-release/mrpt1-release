@@ -10,9 +10,6 @@
 #include <vector>
 #include <deque>
 
-/* smart_ptr */
-#include <mrpt/otherlibs/stlplus/smart_ptr.hpp>
-
 /* macros */
 #define STRINGIFY(str) #str
 
@@ -104,7 +101,8 @@ void export_opengl();
 void export_math();
 void export_math_stl();
 void export_obs();
-void export_maps();
+void export_maps1();
+void export_maps2();
 void export_slam();
 void export_nav();
 void export_poses();
