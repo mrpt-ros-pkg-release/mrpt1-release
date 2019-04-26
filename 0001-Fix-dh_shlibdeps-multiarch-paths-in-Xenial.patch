@@ -1,10 +1,10 @@
-From c98e4f6a3d69a10dcf39f5ff5a73797051ea356b Mon Sep 17 00:00:00 2001
+From 9c0cfc496138c37a1a73f1fcf94fc655f44d0149 Mon Sep 17 00:00:00 2001
 From: Jose Luis Blanco-Claraco <joseluisblancoc@gmail.com>
 Date: Thu, 7 Jun 2018 08:50:19 +0200
 Subject: [PATCH] Fix dh_shlibdeps multiarch paths in Xenial
 
 ---
- debian/rules.em | 51 +++++++++++++++++++++++++++++++++++++++++++++++++--
+ debian/rules.em | 51 +++++++++++++++++++++++++++++++++++++++++++++++--
  1 file changed, 49 insertions(+), 2 deletions(-)
 
 diff --git a/debian/rules.em b/debian/rules.em
@@ -84,5 +84,5 @@ index aa010fa..13956c9 100755
  override_dh_auto_install:
  	# In case we're installing to a non-standard location, look for a setup.sh
 -- 
-2.7.4
+2.17.1
 
