@@ -71,138 +71,10 @@ void mrpt::system::sleep( int time_ms ) MRPT_NO_THROWS
 #endif
 }
 
-/*---------------------------------------------------------------
-						createThread
----------------------------------------------------------------*/
-namespace mrpt
+void mrpt::system::joinThread( TThreadHandle &threadHandle )
 {
-	namespace system
-	{
-		struct TAuxThreadLaucher
-		{
-	#ifdef MRPT_OS_WINDOWS
-			TAuxThreadLaucher() : ptrFunc(NULL),param(NULL),win_sem(0,10)
-			{
-			}
-	#else
-			TAuxThreadLaucher() : ptrFunc(NULL),param(NULL) { };
-	#endif
-			void    (*ptrFunc) (void *);
-			void    *param;
-
-	#ifdef MRPT_OS_WINDOWS
-			// These for windows only:
-			unsigned long		myWindowsId;
-			synch::CSemaphore	win_sem;
-	#endif
-		};
-
-		void *auxiliary_thread_launcher_LIN( void *param )
-		{
-			try
-			{
-			TAuxThreadLaucher   *d = reinterpret_cast<TAuxThreadLaucher*>(param);
-
-			TAuxThreadLaucher	localCopy = *d;
-
-	#ifdef MRPT_OS_WINDOWS
-			// Signal that the thread has started:
-			d->myWindowsId = (unsigned long)GetCurrentThreadId();
-			d->win_sem.release();
-			// Our parent thread will release the memory of "param".
-	#else
-			// LINUX: We have to free here this memory:
-			delete d;
-			d = NULL;
-	#endif
-
-			// Now start the user code:
-			localCopy.ptrFunc( localCopy.param );
-			}
-			catch(std::exception &e)
-			{
-				std::cout << "Exception in [auxiliary_thread_launcher_LIN/WIN]!!!:\n" << e.what();
-			}
-			catch(...)
-			{
-				std::cout << "Untyped exception in [auxiliary_thread_launcher_LIN/WIN]!!!\n";
-			}
-			return NULL;
-		}
-
-		void auxiliary_thread_launcher_WIN( void *param )
-		{
-			auxiliary_thread_launcher_LIN(param);
-		}
-	} // end namespace
-} // end namespace
-
-
-mrpt::system::TThreadHandle mrpt::system::detail::createThreadImpl(
-    void       ( *func )( void * ),
-    void       *param
-    )
-{
-	MRPT_START
-
-    TAuxThreadLaucher   *auxData=new TAuxThreadLaucher();
-    auxData->ptrFunc = func;
-    auxData->param = param;
-
-#ifdef MRPT_OS_WINDOWS
-	TThreadHandle		threadHandle;
-
-	HANDLE h= (HANDLE)_beginthread( auxiliary_thread_launcher_WIN,0, auxData);
-	if (h== ((HANDLE) -1))
-	{
-		delete auxData;
-		THROW_EXCEPTION("Error creating new thread");
-	}
-
-	threadHandle.hThread = h;
-
-	// Wait until the thread starts so we know its ID:
-	auxData->win_sem.waitForSignal();
-	threadHandle.idThread = auxData->myWindowsId;
-
-	delete auxData; auxData = NULL;
-
-	return threadHandle;
-
-#else
-	TThreadHandle		threadHandle;
-
-    pthread_t   newThreadId;
-    int iRet = pthread_create( &newThreadId,NULL,auxiliary_thread_launcher_LIN,auxData);
-    ASSERT_(iRet==0);
-
-	threadHandle.idThread = (unsigned long)newThreadId;
-	return threadHandle;
-#endif
-
-	MRPT_END
-}
-
-
-/*---------------------------------------------------------------
-						joinThread
----------------------------------------------------------------*/
-void mrpt::system::joinThread( const TThreadHandle &threadHandle )
-{
-	if (threadHandle.isClear()) return;
-#ifdef MRPT_OS_WINDOWS
-	int prio = GetThreadPriority((HANDLE) threadHandle.hThread);
-	if (THREAD_PRIORITY_ERROR_RETURN==prio)
-		return; // It seems this is not a running thread...
-
-	DWORD ret = WaitForSingleObject( (HANDLE) threadHandle.hThread , INFINITE );
-	if (ret!=WAIT_OBJECT_0)
-		cerr << "[mrpt::system::joinThread] Error waiting for thread completion!" << endl;
-#elif defined(MRPT_OS_APPLE)
-	pthread_join(reinterpret_cast<pthread_t>(threadHandle.idThread), NULL);
-#else
-	pthread_join(threadHandle.idThread, NULL);
-#endif
+	if (threadHandle.m_thread && threadHandle.m_thread->joinable())
+		threadHandle.m_thread->join();
 }
 
 /*---------------------------------------------------------------
@@ -212,12 +84,6 @@ unsigned long mrpt::system::getCurrentThreadId() MRPT_NO_THROWS
 {
 #ifdef MRPT_OS_WINDOWS
 	return GetCurrentThreadId();
-
-/* Jerome Monceaux 2011/03/08: bilock@gmail.com
- * The next precompilation directive didn't compile under osx
- * added defined(MRPT_OS_APPLE) solved the probleme
- */
-//#elif MRPT_OS_APPLE
 #elif defined(MRPT_OS_APPLE)
 	return reinterpret_cast<unsigned long>(pthread_self());
 #else
@@ -225,77 +91,52 @@ unsigned long mrpt::system::getCurrentThreadId() MRPT_NO_THROWS
 #endif
 }
 
-/*---------------------------------------------------------------
-						getCurrentThreadHandle
----------------------------------------------------------------*/
-TThreadHandle mrpt::system::getCurrentThreadHandle() MRPT_NO_THROWS
-{
-	TThreadHandle h;
-#ifdef MRPT_OS_WINDOWS
-	// Win32:
-	h.hThread = GetCurrentThread();
-	h.idThread = GetCurrentThreadId();
-#elif defined(MRPT_OS_APPLE)
-	h.idThread = reinterpret_cast<long unsigned int>(pthread_self());
-#else
-	// pthreads:
-	h.idThread = pthread_self();
-#endif
-	return h;
-}
-
-/*---------------------------------------------------------------
-					changeThreadPriority
----------------------------------------------------------------*/
-void BASE_IMPEXP mrpt::system::changeThreadPriority(
-	const TThreadHandle &threadHandle,
-	TThreadPriority priority )
+void BASE_IMPEXP mrpt::system::changeCurrentThreadPriority(TThreadPriority priority)
 {
 #ifdef MRPT_OS_WINDOWS
 	// TThreadPriority is defined to agree with numbers expected by Win32 API:
-	SetThreadPriority( threadHandle.hThread, priority);
+	SetThreadPriority(GetCurrentThread(), priority);
 #else
-
 	const pthread_t tid =
-	#ifdef MRPT_OS_APPLE
-		reinterpret_cast<pthread_t>(threadHandle.idThread);
-	#else
-		threadHandle.idThread;
-	#endif
+#ifdef MRPT_OS_APPLE
+		reinterpret_cast<long unsigned int>(pthread_self());
+#else
+		pthread_self();
+#endif
 
 	int ret, policy;
 	struct sched_param param;
 
-	if (0!=(ret=pthread_getschedparam(tid,&policy,&param))) {
+	if (0 != (ret = pthread_getschedparam(tid, &policy, &param))) {
 		cerr << "[mrpt::system::changeThreadPriority] Warning: Failed call to pthread_getschedparam (error: `" << strerror(ret) << "`)" << endl;
 		return;
 	}
 
 	policy = SCHED_RR;
 	int min_prio = sched_get_priority_min(policy), max_prio = sched_get_priority_max(policy);
-	if (min_prio<0) min_prio=1; // Just in case of error to calls above (!)
-	if (max_prio<0) max_prio=99;
+	if (min_prio<0) min_prio = 1; // Just in case of error to calls above (!)
+	if (max_prio<0) max_prio = 99;
 
 	int prio = 0;
-	switch(priority)
+	switch (priority)
 	{
-		case tpLowests: prio=min_prio; break;
-		case tpLower :  prio=(max_prio+3*min_prio)/4; break;
-		case tpLow :    prio=(max_prio+2*min_prio)/3; break;
-		case tpNormal:  prio=(max_prio+min_prio  )/2; break;
-		case tpHigh :   prio=(2*max_prio+min_prio)/3; break;
-		case tpHigher:  prio=(3*max_prio+min_prio)/4; break;
-		case tpHighest: prio=max_prio; break;
+	case tpLowests: prio = min_prio; break;
+	case tpLower:  prio = (max_prio + 3 * min_prio) / 4; break;
+	case tpLow:    prio = (max_prio + 2 * min_prio) / 3; break;
+	case tpNormal:  prio = (max_prio + min_prio) / 2; break;
+	case tpHigh:   prio = (2 * max_prio + min_prio) / 3; break;
+	case tpHigher:  prio = (3 * max_prio + min_prio) / 4; break;
+	case tpHighest: prio = max_prio; break;
 	}
 
 	param.sched_priority = prio;
-	if (0!=(ret=pthread_setschedparam(tid, policy, &param))) {
+	if (0 != (ret = pthread_setschedparam(tid, policy, &param))) {
 		cerr << "[mrpt::system::changeThreadPriority] Warning: Failed call to pthread_setschedparam (error: `" << strerror(ret) << "`)" << endl;
 		return;
 	}
-
 #endif
 }
+
 
 /*---------------------------------------------------------------
 					changeCurrentProcessPriority
@@ -540,11 +381,11 @@ void mrpt::system::terminateThread(TThreadHandle &threadHandle) MRPT_NO_THROWS
 	if (threadHandle.isClear()) return; // done
 
 #ifdef MRPT_OS_WINDOWS
-	TerminateThread(threadHandle.hThread, DWORD(-1));
+	TerminateThread(threadHandle.m_thread->native_handle(), DWORD(-1));
 #elif defined(MRPT_OS_APPLE)
-	pthread_cancel(reinterpret_cast<pthread_t>(threadHandle.idThread));
+	pthread_cancel(reinterpret_cast<pthread_t>(threadHandle.m_thread->native_handle()));
 #else
-	pthread_cancel(threadHandle.idThread);
+	pthread_cancel(threadHandle.m_thread->native_handle());
 #endif
-	threadHandle.clear();
+	threadHandle.m_thread->join();
 }

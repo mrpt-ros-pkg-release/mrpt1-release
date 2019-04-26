@@ -9,7 +9,6 @@
 #ifndef  mrpt_synch_criticalsection_H
 #define  mrpt_synch_criticalsection_H
 
-#include <mrpt/utils/CReferencedMemBlock.h>
 #include <mrpt/utils/mrpt_macros.h>
 #include <string>
 
@@ -52,7 +51,7 @@ namespace mrpt
 			bool  try_enter() const MRPT_OVERRIDE;
 
 			/** Returns the name used in the constructor. */
-			std::string getName() const { return m_name; }
+			std::string getName() const;
 
 			/** If set to a non-NULL value, debug messages regarding the calling threads IDs will be output.  */
 			utils::CStream		*m_debugOut;

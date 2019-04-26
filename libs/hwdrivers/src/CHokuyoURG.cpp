@@ -47,7 +47,7 @@ CHokuyoURG::~CHokuyoURG() {
       delete m_stream;
     m_stream = nullptr;
   }
-  m_win.reset();
+  m_win.reset(NULL);
 }
 
 void CHokuyoURG::sendCmd(const char *str) {
@@ -133,8 +133,13 @@ void CHokuyoURG::doProcessSimple(
     } else
       AtUI = nowUI - m_timeStartUI;
 
-    mrpt::system::TTimeStamp AtDO =
-        mrpt::system::secondsToTimestamp(AtUI * 1e-3 /* Board time is ms */);
+    /* Board time is ms */
+    const double At_secs = AtUI*1e-3;
+    const double At_secs_CPU = mrpt::system::timeDifference(m_timeStartTT, mrpt::system::now());
+    const double clock_drift = At_secs - At_secs_CPU;
+    MRPT_LOG_THROTTLE_INFO(10.0,mrpt::format("[HOKUYO::doProcess] Timestamp sync. At_CPU=%e  secs. Drift=%e secs.", At_secs_CPU, clock_drift));
+
+    mrpt::system::TTimeStamp AtDO = mrpt::system::secondsToTimestamp(At_secs);
     outObservation.timestamp = m_timeStartTT + AtDO;
   }
 
