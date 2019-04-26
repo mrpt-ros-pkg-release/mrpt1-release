@@ -195,14 +195,15 @@ namespace mrpt
 			// Only once (since this will be static along iterations), build a quick look-up table with the
 			//  indices of the free nodes associated to the (first_id,second_id) of each Jacobian pair:
 			// -----------------------------------------------------------------------------------------------
-			vector<pair<size_t,size_t> >  observationIndex_to_relatedFreeNodeIndex; // "relatedFreeNodeIndex" means into [0,nFreeNodes-1], or "-1" if that node is fixed, as ordered in "nodes_to_optimize"
-			observationIndex_to_relatedFreeNodeIndex.reserve(nObservations);
+			// "relatedFreeNodeIndex" means into [0,nFreeNodes-1], or "-1" if that node is fixed, as ordered in "nodes_to_optimize"
+			vector<pair<size_t,size_t> >  obsIdx2fnIdx;
+			obsIdx2fnIdx.reserve(nObservations);
 			ASSERTDEB_(lstJacobians.size()==nObservations)
 			for (typename gst::map_pairIDs_pairJacobs_t::const_iterator itJ=lstJacobians.begin();itJ!=lstJacobians.end();++itJ)
 			{
 				const TNodeID id1 = itJ->first.first;
 				const TNodeID id2 = itJ->first.second;
-				observationIndex_to_relatedFreeNodeIndex.push_back(
+				obsIdx2fnIdx.push_back(
 					std::make_pair(
 						mrpt::utils::find_in_vector(id1,*nodes_to_optimize),
 						mrpt::utils::find_in_vector(id2,*nodes_to_optimize) ));
@@ -212,7 +213,6 @@ namespace mrpt
 			CVectorDouble grad(nFreeNodes*DIMS_POSE);
 			grad.setZero();
 			typedef typename mrpt::aligned_containers<TNodeID,typename gst::matrix_VxV_t>::map_t  map_ID2matrix_VxV_t;
-			vector<map_ID2matrix_VxV_t>  H_map(nFreeNodes);
 
 			double	lambda = initial_lambda; // Will be actually set on first iteration.
 			double	v = 1; // was 2, changed since it's modified in the first pass.
@@ -228,6 +228,7 @@ namespace mrpt
 			for (size_t iter=0;iter<max_iters;++iter)
 			{
 				last_iter = iter;
+				vector<map_ID2matrix_VxV_t>  H_map(nFreeNodes);
 
 				if (have_to_recompute_H_and_grad)  // This will be false only when the delta leads to a worst solution and only a change in lambda is needed.
 				{
@@ -260,8 +261,8 @@ namespace mrpt
 							//    i: [0,nObservations-1]  <--- idx_obs
 
 							// Get the corresponding indices in the vector of "free variables" being optimized:
-							const size_t idx1 = observationIndex_to_relatedFreeNodeIndex[idx_obs].first;
-							const size_t idx2 = observationIndex_to_relatedFreeNodeIndex[idx_obs].second;
+							const size_t idx1 = obsIdx2fnIdx[idx_obs].first;
+							const size_t idx2 = obsIdx2fnIdx[idx_obs].second;
 
 							if (idx1!=string::npos)
 								detail::AuxErrorEval<typename gst::edge_t,gst>::multiply_Jt_W_err(
@@ -314,21 +315,20 @@ namespace mrpt
 							 idxObs<nObservations;
 							 ++itJacobPair,++idxObs)
 						{
-							// We sort IDs such as "i" < "j" and we can build just the upper triangular part of the Hessian.
-							const bool edge_straight = itJacobPair->first.first < itJacobPair->first.second;
+							const bool Hij_upper_triang =
+								itJacobPair->first.first < itJacobPair->first.second;
 
 							// Indices in the "H_map" vector:
-							const size_t idx_i = edge_straight ? observationIndex_to_relatedFreeNodeIndex[idxObs].first  : observationIndex_to_relatedFreeNodeIndex[idxObs].second;
-							const size_t idx_j = edge_straight ? observationIndex_to_relatedFreeNodeIndex[idxObs].second : observationIndex_to_relatedFreeNodeIndex[idxObs].first;
+							const size_t idx_i = obsIdx2fnIdx[idxObs].first;
+							const size_t idx_j = obsIdx2fnIdx[idxObs].second;
 
 							const bool is_i_free_node = idx_i!=string::npos;
 							const bool is_j_free_node = idx_j!=string::npos;
 
 							// Take references to both Jacobians (wrt pose "i" and pose "j"), taking into account the possible
 							// switch in their order:
-
-							const typename gst::matrix_VxV_t &J1 = edge_straight ? itJacobPair->second.first : itJacobPair->second.second;
-							const typename gst::matrix_VxV_t &J2 = edge_straight ? itJacobPair->second.second : itJacobPair->second.first;
+							const typename gst::matrix_VxV_t& J1 = itJacobPair->second.first;
+							const typename gst::matrix_VxV_t& J2 = itJacobPair->second.second;
 
 							// Is "i" a free (to be optimized) node? -> Ji^t * Inf *  Ji
 							if (is_i_free_node)
@@ -349,7 +349,12 @@ namespace mrpt
 							{
 								typename gst::matrix_VxV_t JtJ(mrpt::math::UNINITIALIZED_MATRIX);
 								detail::AuxErrorEval<typename gst::edge_t,gst>::multiplyJ1tLambdaJ2(J1,J2,JtJ,lstObservationData[idxObs].edge);
-								H_map[idx_j][idx_i] += JtJ;
+								// We sort IDs such as "i" < "j" and we can build just
+								// the upper triangular part of the Hessian:
+								if (Hij_upper_triang) // H_map[col][row]
+									H_map[idx_j][idx_i] += JtJ;
+								else
+									H_map[idx_i][idx_j] += JtJ.transpose();
 							}
 						}
 					}
@@ -504,16 +509,14 @@ namespace mrpt
 						for (set<TNodeID>::const_iterator it=nodes_to_optimize->begin();it!=nodes_to_optimize->end();++it)
 						{
 							// exp_delta_i = Exp_SE( delta_i )
-							typename gst::graph_t::constraint_t::type_value exp_delta_pose(UNINITIALIZED_POSE);
 							typename gst::Array_O exp_delta;
 							for (size_t i=0;i<DIMS_POSE;i++)
 								exp_delta[i]= - *delta_ptr++;  // The "-" sign is for the missing "-" carried all this time from above
-							gst::SE_TYPE::exp(exp_delta,exp_delta_pose);
 
 							// new_x_i =  exp_delta_i (+) old_x_i
 							typename gst::graph_t::global_poses_t::iterator it_old_value = graph.nodes.find(*it);
 							old_poses_backup[*it] = it_old_value->second; // back up the old pose as a copy
-							it_old_value->second.composeFrom(exp_delta_pose, it_old_value->second);
+							detail::AuxPoseOPlus<typename gst::edge_t, gst>::sumIncr(it_old_value->second, exp_delta);
 						}
 					}
 
