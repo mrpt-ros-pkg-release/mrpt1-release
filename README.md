@@ -1,3 +1,26 @@
+## mrpt1 (melodic) - 1.5.8-0
+
+The packages in the `mrpt1` repository were released into the `melodic` distro by running `/usr/bin/bloom-release -r melodic --track melodic mrpt1` on `Sat, 04 May 2019 06:56:45 -0000`
+
+The `mrpt1` package was released.
+
+Version of package(s) in repository `mrpt1`:
+
+- upstream repository: https://github.com/MRPT/mrpt.git
+- release repository: https://github.com/mrpt-ros-pkg-release/mrpt1-release.git
+- rosdistro version: `1.5.7-6`
+- old version: `1.5.7-7`
+- new version: `1.5.8-0`
+
+Versions of tools used:
+
+- bloom version: `0.7.2`
+- catkin_pkg version: `0.4.10`
+- rosdep version: `0.15.1`
+- rosdistro version: `0.7.2`
+- vcstools version: `0.1.40`
+
+
 ## mrpt1 (melodic) - 1.5.7-7
 
 The packages in the `mrpt1` repository were released into the `melodic` distro by running `/usr/bin/bloom-release -r melodic --track melodic mrpt1` on `Fri, 26 Apr 2019 22:17:24 -0000`
