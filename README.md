@@ -1,3 +1,26 @@
+## mrpt1 (kinetic) - 1.5.8-1
+
+The packages in the `mrpt1` repository were released into the `kinetic` distro by running `/usr/bin/bloom-release --rosdistro kinetic --track kinetic mrpt1` on `Sat, 05 Oct 2019 17:23:20 -0000`
+
+The `mrpt1` package was released.
+
+Version of package(s) in repository `mrpt1`:
+
+- upstream repository: https://github.com/MRPT/mrpt.git
+- release repository: https://github.com/mrpt-ros-pkg-release/mrpt1-release.git
+- rosdistro version: `1.5.8-0`
+- old version: `1.5.8-0`
+- new version: `1.5.8-1`
+
+Versions of tools used:
+
+- bloom version: `0.8.0`
+- catkin_pkg version: `0.4.13`
+- rosdep version: `0.16.1`
+- rosdistro version: `0.7.4`
+- vcstools version: `0.1.42`
+
+
 ## mrpt1 (kinetic) - 1.5.8-0
 
 The packages in the `mrpt1` repository were released into the `kinetic` distro by running `/usr/bin/bloom-release -r kinetic --track kinetic mrpt1` on `Wed, 08 May 2019 23:25:23 -0000`
